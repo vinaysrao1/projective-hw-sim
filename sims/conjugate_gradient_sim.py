@@ -673,6 +673,18 @@ Valid orders (must be prime): 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, ...
         help='Analyze a specific matrix size (e.g., 1000000 for 1M x 1M)'
     )
 
+    parser.add_argument(
+        '--verify', '-v',
+        action='store_true',
+        help='Run correctness verification (ensures CG produces correct results)'
+    )
+
+    parser.add_argument(
+        '--verify-quick',
+        action='store_true',
+        help='Run quick correctness verification with small matrices'
+    )
+
     return parser.parse_args()
 
 
@@ -718,6 +730,39 @@ def main():
     # Large matrix analysis
     if args.matrix_size:
         analyze_large_matrix(args.matrix_size, args.order, args.iterations)
+
+    # Correctness verification
+    if args.verify or args.verify_quick:
+        try:
+            from cg_correctness import run_full_verification, run_verification_for_order
+        except ImportError:
+            # Try relative import from same directory
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent))
+            from cg_correctness import run_full_verification, run_verification_for_order
+
+        print("\n" + "=" * 80)
+        print("CORRECTNESS VERIFICATION")
+        print("=" * 80)
+
+        if args.verify_quick:
+            # Quick verification with small matrices
+            print("\nRunning quick verification with small test matrices...")
+            all_passed = run_full_verification(
+                orders=[2, 3],
+                sizes=[30, 50],
+                quick=True
+            )
+        else:
+            # Full verification for the specified order
+            print(f"\nRunning verification for order {args.order}...")
+            all_passed = run_verification_for_order(args.order)
+
+        if not all_passed:
+            print("\n⚠️  CORRECTNESS VERIFICATION FAILED!")
+            return 1
+        else:
+            print("\n✓ Correctness verification passed!")
 
     print("\n" + "=" * 80)
     print("SIMULATION COMPLETE")
