@@ -195,8 +195,8 @@ impl ProjectivePlane {
         // of order n = q² + q + 1 and a subset D of size q + 1 such that
         // every non-zero element can be represented as d_i - d_j for unique i,j
         
-        let n = self.size();
-        let k = self.order + 1;
+        let _n = self.size();
+        let _k = self.order + 1;
         
         // Find a generator of the cyclic difference set
         // This corresponds to points on a line in the standard representation

@@ -607,7 +607,6 @@ fn run_sensitivity(parameter: &str) {
 
 fn run_profiling(order: usize, cycles: u64, matrix_size: usize) {
     use projective_hw_sim::profiling::SimulatorProfiler;
-    use std::time::Instant;
     
     println!("{}", "╔══════════════════════════════════════════════════════════════╗".cyan());
     println!("{}", "║        Simulator Performance Profiling                       ║".cyan());

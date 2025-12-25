@@ -7,7 +7,7 @@
 //! - Ring (simple interconnect)
 
 use crate::config::{HardwareConfig, InterconnectTopology};
-use crate::simulation::{SimulationEngine, SimulationReport};
+use crate::simulation::SimulationEngine;
 use crate::workloads::{SpMVWorkload, WorkloadConfig, RowWiseWorkload, WorkloadStats};
 
 /// Comparison results between architectures

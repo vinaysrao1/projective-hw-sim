@@ -56,7 +56,7 @@ impl SpMVWorkload {
     /// - Each processor produces √n output partial sums
     pub fn generate_instructions(&self, processor_id: usize) -> Vec<Instruction> {
         let mut instructions = Vec::new();
-        let n = self.plane.size();
+        let _n = self.plane.size();
         let points_on_line = self.plane.points_on_line(processor_id);
         let k = points_on_line.len();  // p + 1 ≈ √n
         

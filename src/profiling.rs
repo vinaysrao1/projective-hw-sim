@@ -13,7 +13,6 @@
 //!   println!("{}", profiler.report());
 
 use std::time::{Duration, Instant};
-use std::sync::atomic::{AtomicU64, Ordering};
 
 /// High-resolution profiler for the simulator
 #[derive(Debug)]

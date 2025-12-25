@@ -7,7 +7,6 @@
 //! - Statistics collection
 
 use std::collections::{BinaryHeap, VecDeque, HashMap};
-use std::cmp::Reverse;
 
 use crate::config::HardwareConfig;
 use crate::geometry::{ProjectivePlane, RoutingTable};
@@ -123,7 +122,7 @@ pub struct SimulationEngine {
     pub stats: SimulationStats,
     
     // Perfect pattern precomputed schedules
-    perfect_patterns: Vec<Vec<Vec<usize>>>,
+    _perfect_patterns: Vec<Vec<Vec<usize>>>,
 }
 
 /// State of a single processor
@@ -407,7 +406,7 @@ impl SimulationEngine {
             routing,
             event_queue: BinaryHeap::new(),
             stats,
-            perfect_patterns,
+            _perfect_patterns: perfect_patterns,
         }
     }
     
@@ -780,7 +779,7 @@ impl SimulationEngine {
                     }
                 } else {
                     // Send response
-                    let data = mem.data.get(access.request.address).copied().unwrap_or(0.0);
+                    let _data = mem.data.get(access.request.address).copied().unwrap_or(0.0);
                     // Schedule response event
                     // (In a real implementation, this would go through interconnect)
                 }

@@ -5,9 +5,8 @@
 //! trade-offs between performance, cost, and power.
 
 use rayon::prelude::*;
-use std::collections::HashMap;
 
-use crate::config::{HardwareConfig, DesignSpace, InterconnectTopology, RoutingAlgorithm};
+use crate::config::{HardwareConfig, DesignSpace};
 use crate::simulation::SimulationEngine;
 use crate::workloads::{SpMVWorkload, WorkloadConfig};
 
@@ -347,7 +346,7 @@ impl ConfigurationAdvisor {
     pub fn recommend(
         target_gflops: Option<f64>,
         max_area_mm2: Option<f64>,
-        max_power_w: Option<f64>,
+        _max_power_w: Option<f64>,
         max_processors: Option<usize>,
     ) -> HardwareConfig {
         // Start with default and adjust based on constraints
