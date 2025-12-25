@@ -1,0 +1,47 @@
+[package]
+name = "projective-hw-sim"
+version = "0.1.0"
+edition = "2021"
+description = "Cycle-accurate simulator for Karmarkar's Projective Geometry Architecture"
+authors = ["Hardware Development Testbed"]
+
+[dependencies]
+# Parallel simulation
+rayon = "1.8"
+
+# Serialization for configuration and traces
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+
+# Random number generation
+rand = "0.8"
+
+# Command line interface
+clap = { version = "4.4", features = ["derive"] }
+
+# Logging and tracing
+log = "0.4"
+env_logger = "0.10"
+
+# Statistics and histograms
+statrs = "0.16"
+
+# Pretty printing
+tabled = "0.14"
+colored = "2.0"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bin]]
+name = "pg-sim"
+path = "src/main.rs"
+
+[[bin]]
+name = "pg-explorer"
+path = "src/design_explorer.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
