@@ -11,7 +11,7 @@ use crate::simulation::{SimulationEngine, SimulationReport};
 use crate::workloads::{SpMVWorkload, WorkloadConfig, RowWiseWorkload, WorkloadStats};
 
 /// Comparison results between architectures
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ArchitectureComparison {
     pub projective: ArchitectureMetrics,
     pub crossbar: Option<ArchitectureMetrics>,
@@ -19,7 +19,7 @@ pub struct ArchitectureComparison {
     pub bus: Option<ArchitectureMetrics>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ArchitectureMetrics {
     pub name: String,
     pub num_processors: usize,

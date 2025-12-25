@@ -12,14 +12,14 @@ use crate::simulation::SimulationEngine;
 use crate::workloads::{SpMVWorkload, WorkloadConfig};
 
 /// A single point in the design space
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DesignPoint {
     pub config: HardwareConfig,
     pub metrics: DesignMetrics,
 }
 
 /// Metrics for evaluating a design
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DesignMetrics {
     // Performance
     pub throughput_gflops: f64,
@@ -42,7 +42,7 @@ pub struct DesignMetrics {
 }
 
 /// Pareto frontier of optimal designs
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ParetoFrontier {
     pub points: Vec<DesignPoint>,
     pub dominated: Vec<DesignPoint>,
@@ -211,7 +211,7 @@ impl DesignExplorer {
     }
     
     /// Find best configuration for a specific objective
-    pub fn find_best(&self, points: &[DesignPoint], objective: Objective) -> Option<&DesignPoint> {
+    pub fn find_best<'a>(&self, points: &'a [DesignPoint], objective: Objective) -> Option<&'a DesignPoint> {
         points.iter().max_by(|a, b| {
             let score_a = objective.score(&a.metrics);
             let score_b = objective.score(&b.metrics);

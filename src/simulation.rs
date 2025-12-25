@@ -903,7 +903,7 @@ impl SimulationEngine {
 }
 
 /// Summary report from simulation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SimulationReport {
     pub total_cycles: u64,
     pub total_instructions: u64,
