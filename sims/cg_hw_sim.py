@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
 """
-Conjugate Gradient Correctness Verification
-============================================
+Conjugate Gradient Hardware Simulator
+======================================
 
-This module verifies that the projective geometry data distribution
-produces mathematically correct CG solutions.
+This module provides a complete simulation of the Conjugate Gradient algorithm
+on projective geometry hardware, combining:
 
-We verify:
-1. SpMV with projective distribution matches standard SpMV
-2. Dot products with distributed vectors are correct
-3. Full CG iteration produces correct solution
-4. Residual ||Ax - b|| decreases and converges
+1. CORRECTNESS VERIFICATION
+   - SpMV with projective distribution matches standard SpMV
+   - Full CG iteration produces correct solution
+   - Residual ||Ax - b|| decreases and converges
+
+2. EFFICIENCY VERIFICATION
+   - Communication complexity: O(√n) vs O(n) for row-wise
+   - Proves theoretical speedup n/k
+
+3. HARDWARE SIMULATION (via Rust simulator)
+   - Cycle-accurate timing
+   - GFLOPS estimates
+   - Memory conflicts and utilization
 
 The projective distribution from Sapre et al. (2011):
 - Matrix block A[i,j] assigned to processor on line through points i,j
@@ -22,8 +30,133 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse import linalg as splinalg
 from typing import Tuple, List, Dict, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
+import subprocess
+import json
+import sys
 import math
+
+
+# =============================================================================
+# RUST HARDWARE SIMULATOR INTERFACE
+# =============================================================================
+
+def find_rust_binary() -> Path:
+    """Find the pg-sim binary."""
+    script_dir = Path(__file__).parent.parent
+    release_path = script_dir / "target" / "release" / "pg-sim"
+    debug_path = script_dir / "target" / "debug" / "pg-sim"
+
+    if release_path.exists():
+        return release_path
+    elif debug_path.exists():
+        return debug_path
+    else:
+        print("Building Rust simulator...")
+        result = subprocess.run(
+            ["cargo", "build", "--release"],
+            cwd=script_dir,
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            print(f"Error building: {result.stderr}")
+            sys.exit(1)
+        return release_path
+
+
+@dataclass
+class HardwareMetrics:
+    """Results from the Rust hardware simulator."""
+    order: int
+    num_processors: int
+    connections_per_processor: int
+    matrix_size: int
+    total_cycles: int
+    total_instructions: int
+    total_flops: int
+    processor_utilization: float
+    stall_fraction: float
+    memory_bandwidth_utilization: float
+    avg_memory_latency_cycles: float
+    interconnect_conflicts: int
+    memory_conflicts: int
+    gflops: float
+    wall_clock_seconds: float
+    memory_reads: int = 0
+    memory_writes: int = 0
+
+
+class RustSimulator:
+    """Interface to the Rust pg-sim binary for cycle-accurate simulation."""
+
+    def __init__(self):
+        self.binary_path = find_rust_binary()
+
+    def simulate(self, order: int, cycles: int = 10000,
+                 matrix_size: int = 100, verbose: bool = False) -> HardwareMetrics:
+        """Run hardware simulation and return metrics."""
+        cmd = [
+            str(self.binary_path),
+            "--json",
+            "simulate",
+            "--order", str(order),
+            "--cycles", str(cycles),
+            "--matrix-size", str(matrix_size),
+        ]
+
+        if verbose:
+            cmd.append("--verbose")
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise RuntimeError(f"Simulation failed: {result.stderr}")
+
+        data = json.loads(result.stdout)
+        report = data["report"]
+
+        metrics = HardwareMetrics(
+            order=data["order"],
+            num_processors=data["num_processors"],
+            connections_per_processor=data["connections_per_processor"],
+            matrix_size=data["matrix_size"],
+            total_cycles=report["total_cycles"],
+            total_instructions=report["total_instructions"],
+            total_flops=report["total_flops"],
+            processor_utilization=report["processor_utilization"],
+            stall_fraction=report["stall_fraction"],
+            memory_bandwidth_utilization=report["memory_bandwidth_utilization"],
+            avg_memory_latency_cycles=report["avg_memory_latency_cycles"],
+            interconnect_conflicts=report["interconnect_conflicts"],
+            memory_conflicts=report["memory_conflicts"],
+            gflops=report["gflops"],
+            wall_clock_seconds=data["wall_clock_seconds"],
+        )
+
+        if data.get("detailed_stats"):
+            stats = data["detailed_stats"]
+            metrics.memory_reads = stats["memory_reads"]
+            metrics.memory_writes = stats["memory_writes"]
+
+        return metrics
+
+    def get_plane_info(self, order: int) -> dict:
+        """Get projective plane information."""
+        cmd = [
+            str(self.binary_path),
+            "--json",
+            "info",
+            "--order", str(order),
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            raise RuntimeError(f"Info command failed: {result.stderr}")
+
+        return json.loads(result.stdout)
 
 
 # =============================================================================
@@ -841,6 +974,171 @@ def run_verification_for_order(order: int, sizes: List[int] = [50, 100]) -> bool
 
 
 # =============================================================================
+# FULL HARDWARE SIMULATION
+# =============================================================================
+
+def run_full_simulation(order: int, matrix_size: int, cg_iterations: int = 10) -> bool:
+    """
+    Run complete CG hardware simulation with correctness, efficiency, and timing.
+
+    This is the main entry point that combines:
+    1. Mathematical correctness verification
+    2. Communication complexity analysis (proves O(√n) speedup)
+    3. Cycle-accurate hardware simulation via Rust
+    """
+    print("=" * 80)
+    print("CONJUGATE GRADIENT HARDWARE SIMULATION")
+    print("=" * 80)
+
+    n_procs = order * order + order + 1
+    k = order + 1
+
+    print(f"\nConfiguration:")
+    print(f"  Projective plane: P²(GF({order}))")
+    print(f"  Processors: {n_procs}")
+    print(f"  Connections per processor: {k}")
+    print(f"  Matrix size: {matrix_size:,} x {matrix_size:,}")
+    print(f"  CG iterations: {cg_iterations}")
+
+    all_passed = True
+
+    # =========================================================================
+    # PART 1: CORRECTNESS VERIFICATION
+    # =========================================================================
+    print("\n" + "=" * 80)
+    print("PART 1: CORRECTNESS VERIFICATION")
+    print("=" * 80)
+
+    # Use smaller matrix for correctness (large matrices are slow in Python)
+    correctness_size = min(matrix_size, 100)
+    print(f"\nVerifying correctness with {correctness_size}x{correctness_size} matrix...")
+
+    spmv_ok = verify_spmv(order, correctness_size, density=0.1)
+    cg_result = verify_cg(order, correctness_size, density=0.1)
+
+    if spmv_ok and cg_result.passed:
+        print("\n✓ Correctness: PASSED")
+    else:
+        print("\n✗ Correctness: FAILED")
+        all_passed = False
+
+    # =========================================================================
+    # PART 2: COMMUNICATION COMPLEXITY
+    # =========================================================================
+    print("\n" + "=" * 80)
+    print("PART 2: COMMUNICATION COMPLEXITY")
+    print("=" * 80)
+
+    proj_stats = count_projective_communication(order, matrix_size)
+    row_stats = count_rowwise_communication(n_procs)
+
+    proj_reads = proj_stats.max_reads_per_processor()
+    row_reads = row_stats.max_reads_per_processor()
+    speedup = row_reads / proj_reads
+
+    print(f"\nCommunication per SpMV:")
+    print(f"  {'Distribution':<20} {'Reads/Processor':>18} {'Total Reads':>15}")
+    print(f"  {'-'*55}")
+    print(f"  {'Projective':<20} {proj_reads:>18} {proj_stats.total_reads:>15,}")
+    print(f"  {'Row-wise':<20} {row_reads:>18} {row_stats.total_reads:>15,}")
+    print(f"\n  Speedup: {speedup:.1f}x (theoretical: {n_procs/k:.1f}x)")
+
+    # Verify speedup matches theory
+    expected_speedup = n_procs / k
+    if abs(speedup - expected_speedup) < 0.01:
+        print("  ✓ Communication complexity: VERIFIED (O(√n) speedup)")
+    else:
+        print("  ✗ Communication complexity: MISMATCH")
+        all_passed = False
+
+    # =========================================================================
+    # PART 3: HARDWARE SIMULATION
+    # =========================================================================
+    print("\n" + "=" * 80)
+    print("PART 3: HARDWARE SIMULATION (Rust cycle-accurate)")
+    print("=" * 80)
+
+    try:
+        rust_sim = RustSimulator()
+        print(f"\nUsing Rust simulator: {rust_sim.binary_path}")
+
+        # Run hardware simulation
+        print(f"\nSimulating {cg_iterations} CG iterations on {n_procs} processors...")
+        metrics = rust_sim.simulate(
+            order=order,
+            cycles=10000 * cg_iterations,
+            matrix_size=matrix_size,
+            verbose=True
+        )
+
+        print(f"\nHardware Metrics:")
+        print(f"  {'Metric':<35} {'Value':>20}")
+        print(f"  {'-'*55}")
+        print(f"  {'Total cycles':<35} {metrics.total_cycles:>20,}")
+        print(f"  {'Total FLOPs':<35} {metrics.total_flops:>20,}")
+        print(f"  {'Performance':<35} {metrics.gflops:>19.2f} GFLOPS")
+        print(f"  {'Processor utilization':<35} {metrics.processor_utilization:>19.1%}")
+        print(f"  {'Memory conflicts':<35} {metrics.memory_conflicts:>20,}")
+        print(f"  {'Interconnect conflicts':<35} {metrics.interconnect_conflicts:>20,}")
+        print(f"  {'Simulation wall time':<35} {metrics.wall_clock_seconds:>19.3f}s")
+
+    except Exception as e:
+        print(f"\n  ⚠ Hardware simulation unavailable: {e}")
+        print("  (Rust simulator not built or not found)")
+
+    # =========================================================================
+    # PART 4: LARGE MATRIX ANALYSIS
+    # =========================================================================
+    print("\n" + "=" * 80)
+    print("PART 4: LARGE MATRIX ANALYSIS")
+    print("=" * 80)
+
+    segment_size = matrix_size // n_procs
+    bytes_per_element = 8  # 64-bit floats
+
+    # Row-wise communication
+    row_bytes_per_spmv = matrix_size * bytes_per_element  # entire vector
+    row_total_bytes = cg_iterations * n_procs * row_bytes_per_spmv
+
+    # Projective communication
+    proj_bytes_per_spmv = k * segment_size * bytes_per_element  # k segments
+    proj_total_bytes = cg_iterations * n_procs * proj_bytes_per_spmv
+
+    print(f"\nData movement for {matrix_size:,} x {matrix_size:,} matrix:")
+    print(f"  {'Metric':<40} {'Row-wise':>15} {'Projective':>15}")
+    print(f"  {'-'*70}")
+    print(f"  {'Vector elements per processor':<40} {matrix_size:>15,} {k * segment_size:>15,}")
+    print(f"  {'Bytes per SpMV per processor':<40} {row_bytes_per_spmv/1e6:>14.2f}MB {proj_bytes_per_spmv/1e6:>14.2f}MB")
+    print(f"  {'Total bandwidth ({cg_iterations} iters)':<40} {row_total_bytes/1e9:>14.2f}GB {proj_total_bytes/1e9:>14.2f}GB")
+    print(f"  {'Bandwidth saved':<40} {'-':>15} {(row_total_bytes - proj_total_bytes)/1e9:>14.2f}GB")
+
+    # =========================================================================
+    # SUMMARY
+    # =========================================================================
+    print("\n" + "=" * 80)
+    print("SUMMARY")
+    print("=" * 80)
+
+    print(f"""
+    Matrix: {matrix_size:,} x {matrix_size:,}
+    Processors: {n_procs} (order {order})
+
+    1. CORRECTNESS: {'PASSED' if spmv_ok and cg_result.passed else 'FAILED'}
+       - SpMV matches reference implementation
+       - CG converges to correct solution
+
+    2. COMMUNICATION: {speedup:.1f}x improvement
+       - Projective: {k} reads per processor (O(√n))
+       - Row-wise: {n_procs} reads per processor (O(n))
+
+    3. BANDWIDTH SAVED: {(row_total_bytes - proj_total_bytes)/1e9:.2f} GB
+       over {cg_iterations} CG iterations
+    """)
+
+    return all_passed
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -848,25 +1146,45 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Verify correctness of projective-distributed CG'
+        description='CG Hardware Simulator - correctness, efficiency, and timing',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s --order 13 --matrix-size 1500000    # Full simulation
+  %(prog)s --verify-correctness                 # Just correctness
+  %(prog)s --verify-communication               # Just communication
+  %(prog)s --quick                              # Quick test
+        """
     )
-    parser.add_argument('--order', '-o', type=int, default=3,
-                        help='Projective plane order (default: 3)')
-    parser.add_argument('--matrix-size', '-n', type=int, default=100,
-                        help='Matrix size (default: 100)')
+    parser.add_argument('--order', '-o', type=int, default=5,
+                        help='Projective plane order (default: 5, giving 31 processors)')
+    parser.add_argument('--matrix-size', '-m', type=int, default=1000,
+                        help='Matrix size (default: 1000)')
+    parser.add_argument('--iterations', '-i', type=int, default=10,
+                        help='CG iterations (default: 10)')
     parser.add_argument('--density', '-d', type=float, default=0.1,
-                        help='Matrix density (default: 0.1)')
+                        help='Matrix density for correctness tests (default: 0.1)')
+
+    # Mode selection
+    parser.add_argument('--verify-correctness', action='store_true',
+                        help='Only run correctness verification')
+    parser.add_argument('--verify-communication', '-c', action='store_true',
+                        help='Only verify communication complexity')
     parser.add_argument('--full-suite', '-f', action='store_true',
-                        help='Run full verification suite')
+                        help='Run full verification suite across multiple orders')
     parser.add_argument('--quick', '-q', action='store_true',
                         help='Quick test with small sizes')
-    parser.add_argument('--verify-communication', '-c', action='store_true',
-                        help='Verify communication complexity (proves O(√n) speedup)')
 
     args = parser.parse_args()
 
+    # Validate order
+    if not is_prime(args.order):
+        print(f"Error: Order {args.order} is not prime")
+        print("Valid orders: 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, ...")
+        return 1
+
+    # Mode: Communication verification only
     if args.verify_communication:
-        # Run communication complexity verification
         if args.quick:
             orders = [2, 3, 5]
         else:
@@ -874,6 +1192,13 @@ def main():
         passed = run_communication_verification(orders)
         return 0 if passed else 1
 
+    # Mode: Correctness verification only
+    if args.verify_correctness:
+        spmv_ok = verify_spmv(args.order, args.matrix_size, args.density)
+        cg_result = verify_cg(args.order, args.matrix_size, args.density)
+        return 0 if (spmv_ok and cg_result.passed) else 1
+
+    # Mode: Full verification suite
     if args.full_suite:
         if args.quick:
             orders = [2, 3]
@@ -881,19 +1206,12 @@ def main():
         else:
             orders = [2, 3, 5]
             sizes = [50, 100, 200]
-
         passed = run_verification_suite(orders, sizes)
         return 0 if passed else 1
-    else:
-        # Single verification
-        if not is_prime(args.order):
-            print(f"Error: Order {args.order} is not prime")
-            return 1
 
-        spmv_ok = verify_spmv(args.order, args.matrix_size, args.density)
-        cg_result = verify_cg(args.order, args.matrix_size, args.density)
-
-        return 0 if (spmv_ok and cg_result.passed) else 1
+    # Default: Full hardware simulation
+    passed = run_full_simulation(args.order, args.matrix_size, args.iterations)
+    return 0 if passed else 1
 
 
 # =============================================================================

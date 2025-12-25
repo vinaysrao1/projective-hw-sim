@@ -85,20 +85,17 @@ pg-sim info --order 7
 ### Python Simulation Scripts
 
 ```bash
-# Run CG simulation (1.5M x 1.5M matrix on 183 processors)
-python3 sims/conjugate_gradient_sim.py --order 13 --matrix-size 1500000
+# Full simulation (correctness + efficiency + hardware metrics)
+python3 sims/cg_hw_sim.py --order 13 --matrix-size 1500000
 
-# Run scaling study across multiple orders
-python3 sims/conjugate_gradient_sim.py --scaling --max-order 13
+# Verify correctness only
+python3 sims/cg_hw_sim.py --verify-correctness --order 5
 
-# Verify correctness (quick test)
-python3 sims/conjugate_gradient_sim.py --verify-quick
+# Verify communication complexity (proves O(√n) speedup)
+python3 sims/cg_hw_sim.py --verify-communication
 
-# Verify correctness for specific order
-python3 sims/conjugate_gradient_sim.py --order 5 --verify
-
-# Run standalone correctness verification
-python3 sims/cg_correctness.py --full-suite --quick
+# Run full verification suite
+python3 sims/cg_hw_sim.py --full-suite --quick
 ```
 
 ### Programmatic Usage
@@ -265,14 +262,15 @@ Uses 2D projective distribution for C = A × B.
 
 Full iterative solver with SpMV as the dominant kernel.
 
-## Correctness Verification
+## Correctness & Efficiency Verification
 
-The `sims/cg_correctness.py` module verifies that projective-distributed CG produces mathematically correct results:
+The `sims/cg_hw_sim.py` module provides complete verification:
 
 ### What It Verifies
 - **SpMV correctness**: Projective SpMV matches reference implementation (relative error < 1e-15)
 - **CG solution correctness**: Final solution matches reference CG solver (relative error < 1e-6)
-- **Convergence**: Both implementations converge to the true solution
+- **Communication complexity**: Proves O(√n) speedup vs O(n) for row-wise distribution
+- **Hardware metrics**: Cycle-accurate simulation via Rust simulator
 
 ### Key Implementation Details
 - Generates well-conditioned SPD matrices for reliable testing
@@ -281,14 +279,14 @@ The `sims/cg_correctness.py` module verifies that projective-distributed CG prod
 
 ### Running Verification
 ```bash
-# Quick verification (small matrices, orders 2-3)
-python3 sims/cg_correctness.py --full-suite --quick
+# Full simulation (correctness + efficiency + hardware)
+python3 sims/cg_hw_sim.py --order 13 --matrix-size 1500000
 
-# Full verification (larger matrices, orders 2-5)
-python3 sims/cg_correctness.py --full-suite
+# Quick verification suite
+python3 sims/cg_hw_sim.py --full-suite --quick
 
-# Single order verification
-python3 sims/cg_correctness.py --order 5 --matrix-size 100
+# Verify communication complexity only
+python3 sims/cg_hw_sim.py --verify-communication
 ```
 
 ## Output Formats
@@ -379,8 +377,7 @@ projective-hw-sim/
 │   ├── comparison.rs               # Architecture comparison
 │   └── explorer.rs                 # Design space exploration
 └── sims/                           # Python simulation scripts
-    ├── conjugate_gradient_sim.py   # CG performance simulation
-    └── cg_correctness.py           # Correctness verification
+    └── cg_hw_sim.py                # CG hardware simulator (correctness + efficiency + hardware metrics)
 ```
 
 ## References
