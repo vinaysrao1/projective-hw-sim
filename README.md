@@ -48,7 +48,7 @@ This simulator captures the **algorithmic benefits** of projective geometry that
 # Clone or extract the project
 cd projective-hw-sim
 
-# Build release version
+# Build release version (Rust)
 cargo build --release
 
 # Run simulator
@@ -56,11 +56,14 @@ cargo run --release -- --help
 
 # Run design explorer
 cargo run --release --bin pg-explorer
+
+# Install Python dependencies (for simulation scripts)
+pip3 install numpy scipy
 ```
 
 ## Quick Start
 
-### Command Line Interface
+### Command Line Interface (Rust)
 
 ```bash
 # Run simulation with default settings (order 7, 57 processors)
@@ -77,6 +80,25 @@ pg-sim recommend --target-gflops 50 --max-processors 64
 
 # Show projective plane information
 pg-sim info --order 7
+```
+
+### Python Simulation Scripts
+
+```bash
+# Run CG simulation (1.5M x 1.5M matrix on 183 processors)
+python3 sims/conjugate_gradient_sim.py --order 13 --matrix-size 1500000
+
+# Run scaling study across multiple orders
+python3 sims/conjugate_gradient_sim.py --scaling --max-order 13
+
+# Verify correctness (quick test)
+python3 sims/conjugate_gradient_sim.py --verify-quick
+
+# Verify correctness for specific order
+python3 sims/conjugate_gradient_sim.py --order 5 --verify
+
+# Run standalone correctness verification
+python3 sims/cg_correctness.py --full-suite --quick
 ```
 
 ### Programmatic Usage
@@ -243,6 +265,32 @@ Uses 2D projective distribution for C = A × B.
 
 Full iterative solver with SpMV as the dominant kernel.
 
+## Correctness Verification
+
+The `sims/cg_correctness.py` module verifies that projective-distributed CG produces mathematically correct results:
+
+### What It Verifies
+- **SpMV correctness**: Projective SpMV matches reference implementation (relative error < 1e-15)
+- **CG solution correctness**: Final solution matches reference CG solver (relative error < 1e-6)
+- **Convergence**: Both implementations converge to the true solution
+
+### Key Implementation Details
+- Generates well-conditioned SPD matrices for reliable testing
+- Implements full projective distribution in Python for functional verification
+- Critical insight: diagonal blocks must be assigned to exactly one processor (minimum line ID through that point) to avoid being counted k times during reduction
+
+### Running Verification
+```bash
+# Quick verification (small matrices, orders 2-3)
+python3 sims/cg_correctness.py --full-suite --quick
+
+# Full verification (larger matrices, orders 2-5)
+python3 sims/cg_correctness.py --full-suite
+
+# Single order verification
+python3 sims/cg_correctness.py --order 5 --matrix-size 100
+```
+
 ## Output Formats
 
 ### Simulation Report
@@ -318,18 +366,21 @@ routing = "PerfectPattern"
 
 ```
 projective-hw-sim/
-├── Cargo.toml              # Project configuration
-├── README.md               # This file
-└── src/
-    ├── lib.rs              # Library root
-    ├── main.rs             # CLI simulator
-    ├── design_explorer.rs  # Interactive explorer
-    ├── config.rs           # Hardware configuration
-    ├── geometry.rs         # Projective plane math
-    ├── simulation.rs       # Cycle-accurate engine
-    ├── workloads.rs        # SpMV, MatMul, PCG
-    ├── comparison.rs       # Architecture comparison
-    └── explorer.rs         # Design space exploration
+├── Cargo.toml                      # Rust project configuration
+├── README.md                       # This file
+├── src/                            # Rust source code
+│   ├── lib.rs                      # Library root
+│   ├── main.rs                     # CLI simulator
+│   ├── design_explorer.rs          # Interactive explorer
+│   ├── config.rs                   # Hardware configuration
+│   ├── geometry.rs                 # Projective plane math
+│   ├── simulation.rs               # Cycle-accurate engine
+│   ├── workloads.rs                # SpMV, MatMul, PCG
+│   ├── comparison.rs               # Architecture comparison
+│   └── explorer.rs                 # Design space exploration
+└── sims/                           # Python simulation scripts
+    ├── conjugate_gradient_sim.py   # CG performance simulation
+    └── cg_correctness.py           # Correctness verification
 ```
 
 ## References
